@@ -1,133 +1,168 @@
 # ✈️ Flight Delay Risk Prediction & Operational Decision System
 
----
-
-## 🧠 Overview
-
-Airlines operate in highly complex, time-sensitive environments where delays create cascading disruption, increased costs, and poor customer experience.
-
-This project builds a predictive analytics framework to:
-
-* Identify the key drivers of flight delays
-* Estimate the likelihood of delay before departure
-* Translate predictions into actionable operational decisions
-
-The goal is not just to analyse past delays, but to enable **proactive disruption management and better resource allocation**.
+> Transforming historical flight operations data into a proactive delay management framework — from raw data to business-ready risk intelligence.
 
 ---
 
-## 💼 Business Problem
+## 📌 Project Overview
 
-Flight delays are often managed reactively, after disruption has already occurred. This leads to:
+Flight delays cost the U.S. aviation industry an estimated **$28 billion annually** (FAA, Bureau of Transportation Statistics). The vast majority of delay management is reactive — airlines respond to disruption after it has already cascaded through their network.
 
-* Inefficient resource allocation
-* Increased operational costs
-* Reduced customer satisfaction
-* Poor scheduling resilience
-
-There is a need for a system that can:
-
-* Anticipate delay risk
-* Highlight high-risk scenarios
-* Support earlier intervention
+This project builds a **predictive decision-support system** that identifies high-risk flights *before* they depart, using only pre-flight operational data. The output is not just a model — it is an operational framework that translates predictions into concrete scheduling, resourcing, and passenger communication decisions.
 
 ---
 
-## 🎯 Project Objectives
+## 🎯 Business Problem
 
-* Predict the probability of flight delays using historical data
-* Identify key operational and temporal drivers of disruption
-* Develop a decision-support framework for managing delay risk
-* Demonstrate how predictive analytics can improve operational planning
+| Problem | Impact |
+|---|---|
+| Delays identified too late for proactive intervention | Cascading network disruption |
+| Reactive resource allocation | Higher operational costs |
+| Passengers notified only after delays occur | Poor customer experience |
+| No systematic early-warning framework | Missed cost mitigation opportunities |
 
----
-
-## 📊 Dataset
-
-* Source: U.S. Department of Transportation (via Kaggle)
-* Main scope: Historical flight performance data
-
-**Key variables:**
-
-* Departure and arrival times
-* Delay indicators
-* Carrier information
-* Origin and destination airports
-* Temporal features (date, time, seasonality)
+**Goal:** Move delay management from reactive to predictive using structured machine learning.
 
 ---
 
-## ⚙️ My approach
+## 🔬 Methodology
 
-### 1. 🧹 Data Preparation
+### Data Pipeline
 
-* Cleaned and structured raw flight data
-* Handled missing values and inconsistencies
-* Standardised time-based variables
+**Source:** U.S. Bureau of Transportation Statistics — 2015 domestic flight operations  
+**Scale:** 5.8 million flight records across 14 airlines and 322 airports
 
-### 2. 🧠 Feature Engineering
+```
+Raw Data (5.8M rows)
+    ↓
+Missing value treatment (median fill / zero fill for delay causes)
+    ↓
+Column removal (post-event leakage columns excluded)
+    ↓
+Target creation: DELAY_RISK = 1 if DEPARTURE_DELAY > 15 minutes
+    ↓
+Feature engineering (6 operational features)
+    ↓
+Encoding + stratified train/test split (80/20)
+    ↓
+Model training → evaluation → threshold optimisation
+    ↓
+Business decision framework
+```
 
-* Created time-based features (hour, day, seasonality)
-* Engineered lag and rolling metrics
-* Derived indicators for congestion and carrier performance
+### Feature Engineering
 
-### 3. 🔍 Exploratory Analysis
+| Feature | Logic | Business Rationale |
+|---|---|---|
+| `IS_PEAK_HOUR` | Scheduled departure 07:00–10:00 | Morning rush = peak airport congestion |
+| `IS_WEEKEND` | Day of week in [6, 7] | Leisure demand surge affects operations |
+| `IS_LATE_NIGHT` | Scheduled departure ≥ 21:00 | Accumulated delays propagate to late flights |
+| `IS_LONG_HAUL` | Distance > 1,500 miles | Greater operational complexity and rotation dependency |
+| `IS_MAJOR_HUB` | Origin airport in top 6 US hubs | Hub congestion amplifies delay risk |
+| `EARLY_MORNING_FLIGHT` | Scheduled departure ≤ 06:00 | First departures of day — lowest delay accumulation |
+| `SEASON` | Month grouped into 4 seasons | Captures seasonal demand and weather patterns |
+| `DEPARTURE_HOUR` | Scheduled departure // 100 | Non-linear delay risk pattern across the day |
 
-* Identified delay patterns across airports, carriers, and time
-* Analysed distribution and frequency of delays
-* Highlighted high-risk scenarios
+### ⚠️ Data Leakage — Critical Note
 
-### 4. 🤖 Predictive Modelling
+The following columns are **excluded from all model features**. They are recorded only *after* a delay occurs and would constitute data leakage if used as predictors:
 
-* Built a classification model to estimate delay probability
-* Evaluated performance using accuracy, precision, recall
-* Balanced interpretability vs performance
+`AIRLINE_DELAY` · `WEATHER_DELAY` · `LATE_AIRCRAFT_DELAY` · `AIR_SYSTEM_DELAY` · `SECURITY_DELAY`
 
----
-
-## 🔑 Key Insights
-
-* Delay risk is strongly influenced by:
-
-  * Time of day (peak congestion)
-  * Airport traffic levels
-  * Carrier-specific patterns
-
-* Certain routes and time windows show consistently elevated risk
-
-* Delay patterns are **predictable and operationally actionable**
-
----
-
-## 📈 Business Impact
-
-This project demonstrates how airlines can:
-
-* Shift from **reactive to proactive operations**
-* Reduce disruption through early risk identification
-* Improve resource allocation and scheduling
-* Increase operational efficiency
+These columns are used in EDA for diagnostic insight only.
 
 ---
 
-## 🛠️ Tools & Technologies
+## 🤖 Modelling
 
-* Python (Pandas, NumPy)
-* Scikit-learn
-* Matplotlib / Seaborn
-* Jupyter Notebook
+### Models Trained
+
+| Model | Purpose | Scaling Required |
+|---|---|---|
+| Logistic Regression | Baseline / performance floor | Yes (StandardScaler) |
+| Random Forest | Primary model | No |
+
+### Model Selection — Random Forest
+
+Random Forest was selected as the production candidate for the following reasons:
+
+- Higher recall on the delayed class — operationally more valuable than raw accuracy
+- Handles class imbalance natively via `class_weight='balanced'`
+- No feature scaling required
+- Produces interpretable feature importances
+- Robust to outliers and non-linear relationships
+
+### Class Imbalance Strategy
+
+The dataset is moderately imbalanced (~80% on-time, ~20% delayed). Strategy applied:
+- `class_weight='balanced'` on both models
+- Evaluation prioritises **recall** and **F1-score** over accuracy
+- Threshold tuned to 0.40 (below default 0.50) to improve recall on delayed class
+
+## ⚙️ Operational Decision Framework
+
+### Risk Segmentation
+
+| Segment | Probability | Action |
+|---|---|---|
+| 🟢 Low Risk | < 30% | Standard operating procedure |
+| 🟡 Medium Risk | 30–60% | Place on monitoring watch list |
+| 🔴 High Risk | > 60% | Trigger pre-emptive operational response |
+
+### Threshold Analysis
+
+Rather than using the default 0.50 threshold, the model uses **0.40** to prioritise recall — capturing more true delays at the cost of more false alarms. This trade-off is intentional:
+
+> In aviation operations, **missing a true delay** (false negative) is more operationally costly than **an unnecessary alert** (false positive).
+
+### High-Risk Response Playbook
+
+| Trigger | Action | Timing |
+|---|---|---|
+| P(delay) > 0.60 | Ground crew pre-positioning | T−90 min |
+| P(delay) > 0.60 | Proactive passenger notification | T−60 min |
+| P(delay) > 0.60 | Connection risk review | T−60 min |
+| P(delay) > 0.60 | Catering and fuelling schedule review | T−45 min |
+| P(delay) 0.30–0.60 | Monitoring watch list | T−120 min |
 
 ---
 
-## 🚀 Future Improvements
+## 📊 Key EDA Findings
 
-* Integrate real-time data (weather, traffic)
-* Apply advanced models (time-series, ensembles)
-* Build live dashboard for operations teams
-* Add automated alerting system
+- **Late aircraft delays and airline operational delays** are the largest contributors to total delay minutes
+- **Peak hour departures** (07:00–10:00) carry elevated delay risk due to congestion
+- **Early morning flights** (≤ 06:00) are the most punctual — lowest delay accumulation
+- **Delay risk by airline** varies meaningfully — carrier identity is a significant predictor
+- **Long-haul routes** show higher delay risk due to rotation dependency and operational complexity
+- All engineered features confirmed statistically significant via chi-square tests (p < 0.001)
 
 ---
 
-## 🧾 Conclusion
+## 🛠️ Tech Stack
 
-This project demonstrates how data can be used not just to analyse the past, but to **anticipate operational risk and support real world decision-making**.
+| Category | Tools |
+|---|---|
+| Language | Python 3.13 |
+| Data manipulation | Pandas, NumPy |
+| Visualisation | Matplotlib, Seaborn |
+| Machine learning | Scikit-learn |
+| Statistical testing | SciPy |
+| Environment | Jupyter Notebook / Anaconda |
+
+
+## 💡 Business Value
+
+This project demonstrates that a structured, data-driven delay risk framework is technically feasible and operationally deployable using existing airline data infrastructure.
+
+The primary value is not perfect prediction. The value is **earlier, better-informed decision-making** — giving operations teams more time to act before disruption cascades through the network.
+
+---
+
+## 📋 Limitations & Next Steps
+
+| Limitation | Proposed Solution |
+|---|---|
+| Trained on 2015 data — patterns may have shifted | Annual retraining, quarterly validation |
+| No live weather data | Integrate NOAA / weather API feed |
+| No aircraft rotation tracking | Add tail number rotation chain as future feature |
+| Single-year training data | Expand to multi-year dataset for seasonal robustness |
